@@ -1,38 +1,41 @@
-name: ci/cd pipeline to deploy to tomcat
-on: 
+name: DevSecOps Pipeline
+
+on:
   push:
-    branches: master
+    branches:
+      - main
+
 jobs:
-  build-deploy:
+  build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: checkout code
-        uses: actions/checkout@v3
-      
-      - name: set-up jdk
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '17'   # Updated Java version
-      
-      - name: validate with maven
-        run: mvn validate
+    - name: Checkout Code
+      uses: actions/checkout@v3
 
-      - name: compile with maven
-        run: mvn compile
-      
-      - name: test with maven
-        run: mvn test
-      
-      - name: package with maven
-        run: mvn clean package
+    - name: Set up Java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: '17'
 
-      - name: verify WAR file
-        run: ls -lh target/
-        
-      - name: Sonar scan 
-        run: |
-           mvn clean verify sonar:sonar \
-            -Dsonar.projectKey=train-ticket-reservation \
-            -Dsonar.host.url="${{ secrets.SONAR_HOST }}" \
-            -Dsonar.login="${{ secrets.SONAR_TOKEN }}"
+    - name: Build with Maven
+      run: mvn clean package -DskipTests
+
+    - name: SonarQube Scan
+      run: mvn sonar:sonar \
+        -Dsonar.projectKey=demo \
+        -Dsonar.host.url=http://<EC2-IP>:9000 \
+        -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+
+    - name: Upload to Nexus
+      run: mvn deploy -DskipTests
+      env:
+        MAVEN_USERNAME: ${{ secrets.NEXUS_USERNAME }}
+        MAVEN_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
+
+    - name: Deploy to Tomcat
+      run: |
+        curl -u ${{ secrets.TOMCAT_USER }}:${{ secrets.TOMCAT_PASS }} \
+        -T target/*.war \
+        "http://<EC2-IP>:8080/manager/text/deploy?path=/app&update=true"
