@@ -44,3 +44,5 @@ jobs:
       # Deploy to Tomcat # ------------------------- 
     - name: Deploy WAR to Tomcat
       run: curl -u ${{ secrets.TOMCAT_USERNAME }}:${{ secrets.TOMCAT_PASSWORD }} -T target/*.war "http://${{ secrets.TOMCAT_HOST }}:8080/manager/text/deploy?path=/TrainBook&update=true"
+
+      
