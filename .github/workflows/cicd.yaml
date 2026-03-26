@@ -23,7 +23,8 @@ jobs:
       run: mvn clean package -DskipTests
 
     - name: SonarQube Scan
-      run: mvn sonar:sonar \
+      run: |
+        mvn sonar:sonar \
         -Dsonar.projectKey=demo \
         -Dsonar.host.url=http://54.174.215.167:9000 \
         -Dsonar.login=${{ secrets.SONAR_TOKEN }}
