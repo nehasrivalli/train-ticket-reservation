@@ -23,20 +23,24 @@ jobs:
       run: mvn clean package -DskipTests
 
     - name: SonarQube Scan
+      run: mvn org.sonarsource.scanner.maven:sonar-maven-plugin:4.0.0.4121:sonar -Dsonar.projectKey=TrainBook -Dsonar.host.url=http://54.198.170.45:9002 -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+        
+    - name: Configure Maven settings.xml for Nexus
       run: |
-        mvn sonar:sonar \
-        -Dsonar.projectKey=demo \
-        -Dsonar.host.url=http://54.174.215.167:9000 \
-        -Dsonar.login=${{ secrets.SONAR_TOKEN }}
-
-    - name: Upload to Nexus
-      run: mvn deploy -DskipTests
-      env:
-        MAVEN_USERNAME: ${{ secrets.NEXUS_USERNAME }}
-        MAVEN_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
-
-    - name: Deploy to Tomcat
-      run: |
-        curl -u ${{ secrets.TOMCAT_USER }}:${{ secrets.TOMCAT_PASS }} \
-        -T target/*.war \
-        "http://54.174.215.167:8080/manager/text/deploy?path=/app&update=true"
+          mkdir -p ~/.m2
+          cat <<EOF > ~/.m2/settings.xml
+          <settings>
+            <servers>
+              <server>
+                <id>nexus</id>
+                <username>${{ secrets.NEXUS_USERNAME }}</username>
+                <password>${{ secrets.NEXUS_PASSWORD }}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+    - name: Upload Artifact to Nexus
+      run: mvn deploy -DaltDeploymentRepository=nexus::default::${{ secrets.NEXUS_REPO_URL }}
+      # Deploy to Tomcat # ------------------------- 
+    - name: Deploy WAR to Tomcat
+      run: curl -u ${{ secrets.TOMCAT_USERNAME }}:${{ secrets.TOMCAT_PASSWORD }} -T target/*.war "http://${{ secrets.TOMCAT_HOST }}:8080/manager/text/deploy?path=/TrainBook&update=true"
