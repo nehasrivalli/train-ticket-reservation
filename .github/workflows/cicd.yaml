@@ -23,7 +23,7 @@ jobs:
       run: mvn clean package -DskipTests
 
     - name: SonarQube Scan
-      run: mvn org.sonarsource.scanner.maven:sonar-maven-plugin:4.0.0.4121:sonar -Dsonar.projectKey=TrainBook -Dsonar.host.url=http://54.198.170.45:9002 -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+      run: mvn org.sonarsource.scanner.maven:sonar-maven-plugin:4.0.0.4121:sonar -Dsonar.projectKey=TrainBook -Dsonar.host.url=http://54.174.215.167:9000 -Dsonar.login=${{ secrets.SONAR_TOKEN }}
         
     - name: Configure Maven settings.xml for Nexus
       run: |
