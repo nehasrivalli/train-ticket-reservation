@@ -1,38 +1,87 @@
-name: CI/CD Pipeline
+name: Train Ticket Reservation CI/CD
 
 on:
   push:
     branches:
       - main
 
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+  ECS_CLUSTER: train-ticket-cluster
+  ECS_SERVICE: train-ticket-service
+  IMAGE_TAG: ${{ github.sha }}
+
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Checkout code
       - name: Checkout code
         uses: actions/checkout@v3
 
+      # 2️⃣ Configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          region: ${{ secrets.AWS_REGION }}
+          region: ${{ env.AWS_REGION }}
 
+      # 3️⃣ Login to ECR
       - name: Login to Amazon ECR
         run: |
           aws ecr get-login-password --region $AWS_REGION \
           | docker login --username AWS --password-stdin $ECR_REPOSITORY
 
+      # 4️⃣ Build Docker image
       - name: Build Docker image
         run: |
-          docker build -t sample-app .
+          docker build -t train-ticket-app .
 
-      - name: Tag image
+      # 5️⃣ Tag image
+      - name: Tag Docker image
         run: |
-          docker tag sample-app:latest $ECR_REPOSITORY:latest
+          docker tag train-ticket-app:latest $ECR_REPOSITORY:$IMAGE_TAG
 
+      # 6️⃣ Push image to ECR
       - name: Push image to ECR
         run: |
-          docker push $ECR_REPOSITORY:latest
+          docker push $ECR_REPOSITORY:$IMAGE_TAG
+
+      # 7️⃣ Update ECS Task Definition dynamically
+      - name: Update ECS Task Definition
+        id: task-def
+        run: |
+          TASK_DEF=$(aws ecs describe-task-definition \
+            --task-definition train-ticket-task \
+            --query taskDefinition)
+
+          NEW_TASK_DEF=$(echo $TASK_DEF | jq \
+            --arg IMAGE "$ECR_REPOSITORY:$IMAGE_TAG" \
+            '.containerDefinitions[0].image=$IMAGE')
+
+          echo "$NEW_TASK_DEF" > new-task-def.json
+
+          aws ecs register-task-definition \
+            --cli-input-json file://new-task-def.json
+
+      # 8️⃣ Deploy new revision
+      - name: Deploy to ECS
+        run: |
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service $ECS_SERVICE \
+            --force-new-deployment
+
+      # 9️⃣ Wait for deployment
+      - name: Wait for stability
+        run: |
+          aws ecs wait services-stable \
+            --cluster $ECS_CLUSTER \
+            --services $ECS_SERVICE
+
+      # 🔟 Success message
+      - name: Done
+        run: echo "🚀 Train Ticket App Deployed Successfully!"
